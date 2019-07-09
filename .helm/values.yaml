@@ -1,0 +1,26 @@
+ci_url:
+  _default: "pchalyk-awesome-nginx-%s.hv-9-lm.flant.ru"
+
+replicas:
+  api:
+    stage: 2
+    prod: 2
+    _default: 1
+
+resources:
+  api:
+    requests:
+      cpu:
+        _default: 0
+      memory:
+        _default: 4500Mi
+    limits:
+      cpu:
+        _default: 0
+      memory:
+        _default: 4500Mi
+
+app:
+  api:
+    rest_port:
+      _default: 80

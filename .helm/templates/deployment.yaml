@@ -1,0 +1,42 @@
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    component: {{ .Chart.Name }}
+spec:
+  replicas: {{ pluck .Values.global.env .Values.replicas.api | first | default .Values.replicas.api._default }}
+  selector:
+    matchLabels:
+      component: {{ .Chart.Name }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 2
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        component: {{ .Chart.Name }}
+    spec:
+      imagePullSecrets:
+        - name: regcred
+      containers:
+      - name: {{ .Chart.Name }}
+{{ tuple "pchalyk-awesome-nginx" . | include "werf_container_image" | indent 8 }}
+        ports:
+        - containerPort: {{ pluck .Values.global.env .Values.app.api.rest_port | first | default .Values.app.api.rest_port._default }}
+          name: http
+          protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Chart.Name }}
+spec:
+  clusterIP: None
+  selector:
+    component: {{ .Chart.Name }}
+  ports:
+  - name: http
+    port: {{ pluck .Values.global.env .Values.app.api.rest_port | first | default .Values.app.api.rest_port._default }}

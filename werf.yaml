@@ -1,0 +1,108 @@
+project: pchalyk-awesome-php
+configVersion: 1
+---
+{{ $_ := set . "PHPVersion" "7.2" }}
+---
+artifact: index
+from: php:{{.PHPVersion}}
+ansible:
+  beforeInstall:
+  - name: "Create non-root main application user"
+    user:
+      name: app
+      comment: "Non-root main application user"
+      uid: 7000
+      shell: /bin/bash
+      home: /app
+  - name: Install essential utils
+    apt:
+      name: "{{`{{ item }}`}}"
+      update_cache: yes
+    with_items:
+    - apt-transport-https
+    - openssh-client
+    - git
+    - imagemagick
+  - file:
+      path: /root/.ssh
+      state: directory
+      owner: root
+      group: root
+      recurse: yes
+  - name: "Setup ssh known_hosts used in Gemfile"
+    shell: |
+      set -e
+      ssh-keyscan github.com >> /root/.ssh/known_hosts
+    args:
+      executable: /bin/bash
+  install:
+  - name: "Install build dependencies"
+    shell: |
+      set -e
+      echo composer install
+    args:
+      executable: /bin/bash
+      chdir: /app
+    become: true
+    become_user: app
+  beforeSetup:
+  - name: "Compile assets"
+    shell: |
+      set -e
+      echo composer run-script compile-assets
+    args:
+      executable: /bin/bash
+      chdir: /app
+    become: true
+    become_user: app
+  setup:
+  - name: "Store commit-id to config"
+    shell: |
+      set -e
+      mkdir /app/config/
+      echo "$(date) composer run-script git-commit-id" > /app/config/gitchecksum.yaml
+    args:
+      executable: /bin/bash
+      chdir: /app
+    become: true
+    become_user: app
+  - name: "generator"
+    shell: |
+      php generator.php > index.html
+    args:
+      executable: /bin/bash
+      chdir: /app
+    become: true
+    become_user: app
+mount:
+- from: tmp_dir
+  to: /var/lib/apt/lists
+- from: build_dir
+  to: /var/cache/apt
+git:
+- add: /src
+  to: /app
+  includePaths:
+  - '**/*.html'
+  - '**/*.php'
+  - '**/*.js'
+  excludePaths:
+  - '**/*-dev.*'
+  - '**/*-test.*'
+  owner: app
+  group: app
+  stageDependencies:
+    install:
+    - "composer.lock"
+    beforeSetup:
+    - "src/assets/**"
+    setup:
+    - "*"
+---
+image: pchalyk-awesome-nginx
+from: nginx:latest
+import:
+- artifact: index
+  add: /app/index.html
+  to: /usr/share/nginx/html
+  before: install
